@@ -62,12 +62,15 @@
             <label>Investments / Assets (AUD)</label>
             <input type="number" id="investInput" placeholder="0">
 
-            <label>Liabilities / Debt (AUD)</label>
-            <input type="number" id="debtInput" placeholder="0">
+            <label>Other (Car, Household Items, etc.) (AUD)</label>
+            <input type="number" id="otherInput" placeholder="0">
 
             <label>Estimated EOFY Tax Refund / (Owed) (AUD)</label>
             <input type="number" id="taxInput" placeholder="0">
             <div class="sub-text">Positive for expected refund, negative if expected tax payable</div>
+
+            <label>Liabilities / Debt (AUD)</label>
+            <input type="number" id="debtInput" placeholder="0">
 
             <button onclick="saveDailySnapshot()">Save Today's Snapshot</button>
             
@@ -83,7 +86,7 @@
     let myChart = null;
 
     function getHistory() {
-        let data = localStorage.getItem('nw_history_v3');
+        let data = localStorage.getItem('nw_history_v4');
         return data ? JSON.parse(data) : [];
     }
 
@@ -95,8 +98,9 @@
             document.getElementById('superInput').value = latest.superVal;
             document.getElementById('fhssInput').value = latest.fhss;
             document.getElementById('investInput').value = latest.invest;
-            document.getElementById('debtInput').value = latest.debt;
+            document.getElementById('otherInput').value = latest.other !== undefined ? latest.other : 0;
             document.getElementById('taxInput').value = latest.tax !== undefined ? latest.tax : 0;
+            document.getElementById('debtInput').value = latest.debt;
             updateDisplay(latest);
         }
         renderChart();
@@ -104,7 +108,8 @@
 
     function updateDisplay(record) {
         let taxVal = record.tax !== undefined ? record.tax : 0;
-        let totalAssets = record.cash + record.superVal + record.fhss + record.invest + taxVal;
+        let otherVal = record.other !== undefined ? record.other : 0;
+        let totalAssets = record.cash + record.superVal + record.fhss + record.invest + otherVal + taxVal;
         let netWorth = totalAssets - record.debt;
         
         document.getElementById('netWorthDisplay').innerText = netWorth.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
@@ -117,14 +122,15 @@
         let superVal = parseFloat(document.getElementById('superInput').value) || 0;
         let fhss = parseFloat(document.getElementById('fhssInput').value) || 0;
         let invest = parseFloat(document.getElementById('investInput').value) || 0;
-        let debt = parseFloat(document.getElementById('debtInput').value) || 0;
+        let other = parseFloat(document.getElementById('otherInput').value) || 0;
         let tax = parseFloat(document.getElementById('taxInput').value) || 0;
+        let debt = parseFloat(document.getElementById('debtInput').value) || 0;
 
         let todayStr = new Date().toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
         let history = getHistory();
         
         let existingIndex = history.findIndex(item => item.date === todayStr);
-        let newRecord = { date: todayStr, cash, superVal, fhss, invest, debt, tax };
+        let newRecord = { date: todayStr, cash, superVal, fhss, invest, other, tax, debt };
         
         if (existingIndex >= 0) {
             history[existingIndex] = newRecord;
@@ -132,7 +138,7 @@
             history.push(newRecord);
         }
 
-        localStorage.setItem('nw_history_v3', JSON.stringify(history));
+        localStorage.setItem('nw_history_v4', JSON.stringify(history));
         updateDisplay(newRecord);
         renderChart();
         alert('Daily snapshot saved securely on your device!');
@@ -144,12 +150,14 @@
         
         let netWorthValues = history.map(item => {
             let t = item.tax !== undefined ? item.tax : 0;
-            return (item.cash + item.superVal + item.fhss + item.invest + t) - item.debt;
+            let o = item.other !== undefined ? item.other : 0;
+            return (item.cash + item.superVal + item.fhss + item.invest + o + t) - item.debt;
         });
         let cashValues = history.map(item => item.cash);
         let superValues = history.map(item => item.superVal);
         let fhssValues = history.map(item => item.fhss);
         let investValues = history.map(item => item.invest);
+        let otherValues = history.map(item => item.other !== undefined ? item.other : 0);
         let taxValues = history.map(item => item.tax !== undefined ? item.tax : 0);
         let debtValues = history.map(item => item.debt);
 
@@ -202,6 +210,13 @@
                         tension: 0.3
                     },
                     {
+                        label: 'Other (Car/Assets)',
+                        data: otherValues,
+                        borderColor: '#ff2d55',
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
                         label: 'Est. EOFY Tax',
                         data: taxValues,
                         borderColor: '#32ade6',
@@ -231,7 +246,7 @@
     }
 
     function exportData() {
-        let data = localStorage.getItem('nw_history_v3');
+        let data = localStorage.getItem('nw_history_v4');
         if (!data) { alert('No data to export!'); return; }
         let blob = new Blob([data], { type: 'application/json' });
         let url = URL.createObjectURL(blob);
@@ -247,7 +262,7 @@
         let reader = new FileReader();
         reader.onload = function(e) {
             try {
-                localStorage.setItem('nw_history_v3', e.target.result);
+                localStorage.setItem('nw_history_v4', e.target.result);
                 init();
                 alert('Data successfully restored from backup!');
             } catch (err) {
