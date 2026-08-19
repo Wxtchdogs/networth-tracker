@@ -67,12 +67,11 @@
             <label>Other (Car, Household Items, etc.) (AUD)</label>
             <input type="number" id="otherInput" placeholder="0" oninput="triggerAutoSave()">
 
-            <label>Estimated EOFY Tax Refund / (Owed) (AUD)</label>
-            <input type="number" id="taxInput" placeholder="0" oninput="triggerAutoSave()">
-            <div class="sub-text">Positive for expected refund, negative if expected tax payable</div>
-
             <label>Liabilities / Debt (AUD)</label>
             <input type="number" id="debtInput" placeholder="0" oninput="triggerAutoSave()">
+
+            <label>Tax Debt (AUD)</label>
+            <input type="number" id="taxInput" placeholder="0" oninput="triggerAutoSave()">
             
             <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button onclick="downloadBackupFile()" style="background: #5856d6; margin-top: 0;">Download Backup File</button>
@@ -110,8 +109,8 @@
             document.getElementById('fhssInput').value = latest.fhss || 0;
             document.getElementById('investInput').value = latest.invest || 0;
             document.getElementById('otherInput').value = latest.other || 0;
-            document.getElementById('taxInput').value = latest.tax || 0;
             document.getElementById('debtInput').value = latest.debt || 0;
+            document.getElementById('taxInput').value = latest.tax || 0;
             updateDisplay(latest);
         }
         renderChart();
@@ -123,15 +122,16 @@
         let fhss = record.fhss || 0;
         let invest = record.invest || 0;
         let other = record.other || 0;
-        let tax = record.tax || 0;
         let debt = record.debt || 0;
+        let tax = record.tax || 0;
 
-        let totalAssets = cash + superVal + fhss + invest + other + tax;
-        let netWorth = totalAssets - debt;
+        let totalAssets = cash + superVal + fhss + invest + other;
+        let totalDebt = debt + tax;
+        let netWorth = totalAssets - totalDebt;
         
         document.getElementById('netWorthDisplay').innerText = netWorth.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
         document.getElementById('summaryAssets').innerText = totalAssets.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-        document.getElementById('summaryDebt').innerText = debt.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+        document.getElementById('summaryDebt').innerText = totalDebt.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
     }
 
     function triggerAutoSave() {
@@ -149,14 +149,14 @@
         let fhss = parseFloat(document.getElementById('fhssInput').value) || 0;
         let invest = parseFloat(document.getElementById('investInput').value) || 0;
         let other = parseFloat(document.getElementById('otherInput').value) || 0;
-        let tax = parseFloat(document.getElementById('taxInput').value) || 0;
         let debt = parseFloat(document.getElementById('debtInput').value) || 0;
+        let tax = parseFloat(document.getElementById('taxInput').value) || 0;
 
         let todayStr = new Date().toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
         let history = getHistory();
         
         let existingIndex = history.findIndex(item => item.date === todayStr);
-        let newRecord = { date: todayStr, cash, superVal, fhss, invest, other, tax, debt };
+        let newRecord = { date: todayStr, cash, superVal, fhss, invest, other, debt, tax };
         
         if (existingIndex >= 0) {
             history[existingIndex] = newRecord;
@@ -186,9 +186,9 @@
             let f = item.fhss || 0;
             let i = item.invest || 0;
             let o = item.other || 0;
-            let t = item.tax || 0;
             let d = item.debt || 0;
-            return (c + s + f + i + o + t) - d;
+            let t = item.tax || 0;
+            return (c + s + f + i + o) - (d + t);
         });
 
         let cashValues = history.map(item => item.cash || 0);
@@ -196,8 +196,7 @@
         let fhssValues = history.map(item => item.fhss || 0);
         let investValues = history.map(item => item.invest || 0);
         let otherValues = history.map(item => item.other || 0);
-        let taxValues = history.map(item => item.tax || 0);
-        let debtValues = history.map(item => item.debt || 0);
+        let debtValues = history.map(item => (item.debt || 0) + (item.tax || 0));
 
         let ctx = document.getElementById('netWorthChart').getContext('2d');
         
@@ -216,8 +215,7 @@
                     { label: 'FHSS', data: fhssValues, borderColor: '#ff9500', borderWidth: 2, tension: 0.3 },
                     { label: 'Investments', data: investValues, borderColor: '#af52de', borderWidth: 2, tension: 0.3 },
                     { label: 'Other (Car/Assets)', data: otherValues, borderColor: '#ff2d55', borderWidth: 2, tension: 0.3 },
-                    { label: 'Est. EOFY Tax', data: taxValues, borderColor: '#32ade6', borderWidth: 2, tension: 0.3 },
-                    { label: 'Liabilities', data: debtValues, borderColor: '#ff3b30', borderWidth: 2, tension: 0.3 }
+                    { label: 'Liabilities (Debt & Tax)', data: debtValues, borderColor: '#ff3b30', borderWidth: 2, tension: 0.3 }
                 ]
             },
             options: {
