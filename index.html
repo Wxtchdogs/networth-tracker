@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Net Worth Tracker</title>
+    <!-- Chart.js for rendering historical graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f2f2f7; margin: 0; padding: 16px; color: #1c1c1e; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; text-align: center; }
+        /* Full width card specifically for the chart spanning edge-to-edge */
+        .card.full-width-card { max-width: 100%; width: 100%; box-sizing: border-box; text-align: left; }
+        h1 { font-size: 22px; margin-top: 0; }
+        .net-worth { font-size: 34px; font-weight: bold; color: #34c759; margin-top: 5px; }
+        label { font-size: 14px; color: #3a3a3c; font-weight: 500; display: block; margin-top: 10px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 6px 0 10px 0; border: 1px solid #c7c7cc; border-radius: 8px; box-sizing: border-box; font-size: 16px; background: #f9f9fb; text-align: center; }
+        button { background: #007aff; color: white; border: none; padding: 14px; width: 100%; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:active { background: #0056b3; }
+        .chart-container { position: relative; height: 260px; width: 100%; }
+        .sub-text { font-size: 13px; color: #8e8e93; }
+        .breakdown { display: flex; justify-content: center; gap: 30px; margin-top: 12px; font-size: 13px; color: #3a3a3c; border-top: 1px solid #e5e5ea; padding-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <h1>Net Worth Dashboard</h1>
+            <div class="sub-text">Latest Recorded Total</div>
+            <div class="net-worth" id="netWorthDisplay">$0.00</div>
+            
+            <div class="breakdown">
+                <div>Assets: <span id="summaryAssets" style="font-weight: 600;">$0</span></div>
+                <div>Liabilities: <span id="summaryDebt" style="font-weight: 600; color: #ff3b30;">$0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Width Chart Card outside the constrained container -->
+    <div class="card full-width-card">
+        <h1>Historical Trend</h1>
+        <div class="chart-container">
+            <canvas id="netWorthChart"></canvas>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h1>Daily Update</h1>
+            <div class="sub-text" style="margin-bottom: 12px;">Enter today's balances to log a new point.</div>
+            
+            <label>Cash & Savings (AUD)</label>
+            <input type="number" id="cashInput" placeholder="0">
+
+            <label>Standard Superannuation (AUD)</label>
+            <input type="number" id="superInput" placeholder="0">
+
+            <label>FHSS (First Home Super Saver) (AUD)</label>
+            <input type="number" id="fhssInput" placeholder="0">
+
+            <label>Investments / Assets (AUD)</label>
+            <input type="number" id="investInput" placeholder="0">
+
+            <label>Liabilities / Debt (AUD)</label>
+            <input type="number" id="debtInput" placeholder="0">
+
+            <button onclick="saveDailySnapshot()">Save Today's Snapshot</button>
+        </div>
+    </div>
+
+<script>
+    let myChart = null;
+
+    function getHistory() {
+        let data = localStorage.getItem('nw_history_v2');
+        return data ? JSON.parse(data) : [];
+    }
+
+    function init() {
+        let history = getHistory();
+        if (history.length > 0) {
+            let latest = history[history.length - 1];
+            document.getElementById('cashInput').value = latest.cash;
+            document.getElementById('superInput').value = latest.superVal;
+            document.getElementById('fhssInput').value = latest.fhss;
+            document.getElementById('investInput').value = latest.invest;
+            document.getElementById('debtInput').value = latest.debt;
+            updateDisplay(latest);
+        }
+        renderChart();
+    }
+
+    function updateDisplay(record) {
+        let totalAssets = record.cash + record.superVal + record.fhss + record.invest;
+        let netWorth = totalAssets - record.debt;
+        
+        document.getElementById('netWorthDisplay').innerText = netWorth.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+        document.getElementById('summaryAssets').innerText = totalAssets.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+        document.getElementById('summaryDebt').innerText = record.debt.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+    }
+
+    function saveDailySnapshot() {
+        let cash = parseFloat(document.getElementById('cashInput').value) || 0;
+        let superVal = parseFloat(document.getElementById('superInput').value) || 0;
+        let fhss = parseFloat(document.getElementById('fhssInput').value) || 0;
+        let invest = parseFloat(document.getElementById('investInput').value) || 0;
+        let debt = parseFloat(document.getElementById('debtInput').value) || 0;
+
+        let todayStr = new Date().toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
+        let history = getHistory();
+        
+        let existingIndex = history.findIndex(item => item.date === todayStr);
+        let newRecord = { date: todayStr, cash, superVal, fhss, invest, debt };
+        
+        if (existingIndex >= 0) {
+            history[existingIndex] = newRecord;
+        } else {
+            history.push(newRecord);
+        }
+
+        localStorage.setItem('nw_history_v2', JSON.stringify(history));
+        updateDisplay(newRecord);
+        renderChart();
+        alert('Daily snapshot saved securely on your device!');
+    }
+
+    function renderChart() {
+        let history = getHistory();
+        let labels = history.map(item => item.date);
+        let netWorthValues = history.map(item => (item.cash + item.superVal + item.fhss + item.invest) - item.debt);
+
+        let ctx = document.getElementById('netWorthChart').getContext('2d');
+        
+        if (myChart) {
+            myChart.destroy();
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Worth',
+                    data: netWorthValues,
+                    borderColor: '#34c759',
+                    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { ticks: { callback: function(value) { return '$' + value.toLocaleString(); } } }
+                }
+            }
+        });
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
