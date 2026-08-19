@@ -83,10 +83,23 @@
     </div>
 
 <script>
+    const STORAGE_KEY = 'nw_history_v_final';
     let myChart = null;
 
     function getHistory() {
-        let data = localStorage.getItem('nw_history_v4');
+        // Migration check: check current key first, fallback to older keys if empty
+        let data = localStorage.getItem(STORAGE_KEY);
+        if (!data) {
+            data = localStorage.getItem('nw_history_v4') || 
+                   localStorage.getItem('nw_history_v3') || 
+                   localStorage.getItem('nw_history_v2') || 
+                   localStorage.getItem('nw_history');
+            
+            if (data) {
+                // Migrate old data forward and save under the stable key
+                localStorage.setItem(STORAGE_KEY, data);
+            }
+        }
         return data ? JSON.parse(data) : [];
     }
 
@@ -94,27 +107,33 @@
         let history = getHistory();
         if (history.length > 0) {
             let latest = history[history.length - 1];
-            document.getElementById('cashInput').value = latest.cash;
-            document.getElementById('superInput').value = latest.superVal;
-            document.getElementById('fhssInput').value = latest.fhss;
-            document.getElementById('investInput').value = latest.invest;
-            document.getElementById('otherInput').value = latest.other !== undefined ? latest.other : 0;
-            document.getElementById('taxInput').value = latest.tax !== undefined ? latest.tax : 0;
-            document.getElementById('debtInput').value = latest.debt;
+            document.getElementById('cashInput').value = latest.cash || 0;
+            document.getElementById('superInput').value = latest.superVal || 0;
+            document.getElementById('fhssInput').value = latest.fhss || 0;
+            document.getElementById('investInput').value = latest.invest || 0;
+            document.getElementById('otherInput').value = latest.other || 0;
+            document.getElementById('taxInput').value = latest.tax || 0;
+            document.getElementById('debtInput').value = latest.debt || 0;
             updateDisplay(latest);
         }
         renderChart();
     }
 
     function updateDisplay(record) {
-        let taxVal = record.tax !== undefined ? record.tax : 0;
-        let otherVal = record.other !== undefined ? record.other : 0;
-        let totalAssets = record.cash + record.superVal + record.fhss + record.invest + otherVal + taxVal;
-        let netWorth = totalAssets - record.debt;
+        let cash = record.cash || 0;
+        let superVal = record.superVal || 0;
+        let fhss = record.fhss || 0;
+        let invest = record.invest || 0;
+        let other = record.other || 0;
+        let tax = record.tax || 0;
+        let debt = record.debt || 0;
+
+        let totalAssets = cash + superVal + fhss + invest + other + tax;
+        let netWorth = totalAssets - debt;
         
         document.getElementById('netWorthDisplay').innerText = netWorth.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
         document.getElementById('summaryAssets').innerText = totalAssets.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
-        document.getElementById('summaryDebt').innerText = record.debt.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+        document.getElementById('summaryDebt').innerText = debt.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
     }
 
     function saveDailySnapshot() {
@@ -138,7 +157,7 @@
             history.push(newRecord);
         }
 
-        localStorage.setItem('nw_history_v4', JSON.stringify(history));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
         updateDisplay(newRecord);
         renderChart();
         alert('Daily snapshot saved securely on your device!');
@@ -149,17 +168,23 @@
         let labels = history.map(item => item.date);
         
         let netWorthValues = history.map(item => {
-            let t = item.tax !== undefined ? item.tax : 0;
-            let o = item.other !== undefined ? item.other : 0;
-            return (item.cash + item.superVal + item.fhss + item.invest + o + t) - item.debt;
+            let c = item.cash || 0;
+            let s = item.superVal || 0;
+            let f = item.fhss || 0;
+            let i = item.invest || 0;
+            let o = item.other || 0;
+            let t = item.tax || 0;
+            let d = item.debt || 0;
+            return (c + s + f + i + o + t) - d;
         });
-        let cashValues = history.map(item => item.cash);
-        let superValues = history.map(item => item.superVal);
-        let fhssValues = history.map(item => item.fhss);
-        let investValues = history.map(item => item.invest);
-        let otherValues = history.map(item => item.other !== undefined ? item.other : 0);
-        let taxValues = history.map(item => item.tax !== undefined ? item.tax : 0);
-        let debtValues = history.map(item => item.debt);
+
+        let cashValues = history.map(item => item.cash || 0);
+        let superValues = history.map(item => item.superVal || 0);
+        let fhssValues = history.map(item => item.fhss || 0);
+        let investValues = history.map(item => item.invest || 0);
+        let otherValues = history.map(item => item.other || 0);
+        let taxValues = history.map(item => item.tax || 0);
+        let debtValues = history.map(item => item.debt || 0);
 
         let ctx = document.getElementById('netWorthChart').getContext('2d');
         
@@ -172,72 +197,20 @@
             data: {
                 labels: labels,
                 datasets: [
-                    {
-                        label: 'Net Worth',
-                        data: netWorthValues,
-                        borderColor: '#34c759',
-                        backgroundColor: 'rgba(52, 199, 89, 0.05)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Cash & Savings',
-                        data: cashValues,
-                        borderColor: '#007aff',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Standard Super',
-                        data: superValues,
-                        borderColor: '#5856d6',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'FHSS',
-                        data: fhssValues,
-                        borderColor: '#ff9500',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Investments',
-                        data: investValues,
-                        borderColor: '#af52de',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Other (Car/Assets)',
-                        data: otherValues,
-                        borderColor: '#ff2d55',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Est. EOFY Tax',
-                        data: taxValues,
-                        borderColor: '#32ade6',
-                        borderWidth: 2,
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Liabilities',
-                        data: debtValues,
-                        borderColor: '#ff3b30',
-                        borderWidth: 2,
-                        tension: 0.3
-                    }
+                    { label: 'Net Worth', data: netWorthValues, borderColor: '#34c759', backgroundColor: 'rgba(52, 199, 89, 0.05)', borderWidth: 3, fill: true, tension: 0.3 },
+                    { label: 'Cash & Savings', data: cashValues, borderColor: '#007aff', borderWidth: 2, tension: 0.3 },
+                    { label: 'Standard Super', data: superValues, borderColor: '#5856d6', borderWidth: 2, tension: 0.3 },
+                    { label: 'FHSS', data: fhssValues, borderColor: '#ff9500', borderWidth: 2, tension: 0.3 },
+                    { label: 'Investments', data: investValues, borderColor: '#af52de', borderWidth: 2, tension: 0.3 },
+                    { label: 'Other (Car/Assets)', data: otherValues, borderColor: '#ff2d55', borderWidth: 2, tension: 0.3 },
+                    { label: 'Est. EOFY Tax', data: taxValues, borderColor: '#32ade6', borderWidth: 2, tension: 0.3 },
+                    { label: 'Liabilities', data: debtValues, borderColor: '#ff3b30', borderWidth: 2, tension: 0.3 }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { 
-                    legend: { display: true, position: 'bottom' } 
-                },
+                plugins: { legend: { display: true, position: 'bottom' } },
                 scales: {
                     y: { ticks: { callback: function(value) { return '$' + value.toLocaleString(); } } }
                 }
@@ -246,7 +219,7 @@
     }
 
     function exportData() {
-        let data = localStorage.getItem('nw_history_v4');
+        let data = localStorage.getItem(STORAGE_KEY);
         if (!data) { alert('No data to export!'); return; }
         let blob = new Blob([data], { type: 'application/json' });
         let url = URL.createObjectURL(blob);
@@ -262,7 +235,7 @@
         let reader = new FileReader();
         reader.onload = function(e) {
             try {
-                localStorage.setItem('nw_history_v4', e.target.result);
+                localStorage.setItem(STORAGE_KEY, e.target.result);
                 init();
                 alert('Data successfully restored from backup!');
             } catch (err) {
