@@ -65,6 +65,10 @@
             <label>Liabilities / Debt (AUD)</label>
             <input type="number" id="debtInput" placeholder="0">
 
+            <label>Estimated EOFY Tax Refund / (Owed) (AUD)</label>
+            <input type="number" id="taxInput" placeholder="0">
+            <div class="sub-text">Positive for expected refund, negative if expected tax payable</div>
+
             <button onclick="saveDailySnapshot()">Save Today's Snapshot</button>
             
             <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -79,7 +83,7 @@
     let myChart = null;
 
     function getHistory() {
-        let data = localStorage.getItem('nw_history_v2');
+        let data = localStorage.getItem('nw_history_v3');
         return data ? JSON.parse(data) : [];
     }
 
@@ -92,13 +96,15 @@
             document.getElementById('fhssInput').value = latest.fhss;
             document.getElementById('investInput').value = latest.invest;
             document.getElementById('debtInput').value = latest.debt;
+            document.getElementById('taxInput').value = latest.tax !== undefined ? latest.tax : 0;
             updateDisplay(latest);
         }
         renderChart();
     }
 
     function updateDisplay(record) {
-        let totalAssets = record.cash + record.superVal + record.fhss + record.invest;
+        let taxVal = record.tax !== undefined ? record.tax : 0;
+        let totalAssets = record.cash + record.superVal + record.fhss + record.invest + taxVal;
         let netWorth = totalAssets - record.debt;
         
         document.getElementById('netWorthDisplay').innerText = netWorth.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
@@ -112,12 +118,13 @@
         let fhss = parseFloat(document.getElementById('fhssInput').value) || 0;
         let invest = parseFloat(document.getElementById('investInput').value) || 0;
         let debt = parseFloat(document.getElementById('debtInput').value) || 0;
+        let tax = parseFloat(document.getElementById('taxInput').value) || 0;
 
         let todayStr = new Date().toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
         let history = getHistory();
         
         let existingIndex = history.findIndex(item => item.date === todayStr);
-        let newRecord = { date: todayStr, cash, superVal, fhss, invest, debt };
+        let newRecord = { date: todayStr, cash, superVal, fhss, invest, debt, tax };
         
         if (existingIndex >= 0) {
             history[existingIndex] = newRecord;
@@ -125,7 +132,7 @@
             history.push(newRecord);
         }
 
-        localStorage.setItem('nw_history_v2', JSON.stringify(history));
+        localStorage.setItem('nw_history_v3', JSON.stringify(history));
         updateDisplay(newRecord);
         renderChart();
         alert('Daily snapshot saved securely on your device!');
@@ -135,11 +142,15 @@
         let history = getHistory();
         let labels = history.map(item => item.date);
         
-        let netWorthValues = history.map(item => (item.cash + item.superVal + item.fhss + item.invest) - item.debt);
+        let netWorthValues = history.map(item => {
+            let t = item.tax !== undefined ? item.tax : 0;
+            return (item.cash + item.superVal + item.fhss + item.invest + t) - item.debt;
+        });
         let cashValues = history.map(item => item.cash);
         let superValues = history.map(item => item.superVal);
         let fhssValues = history.map(item => item.fhss);
         let investValues = history.map(item => item.invest);
+        let taxValues = history.map(item => item.tax !== undefined ? item.tax : 0);
         let debtValues = history.map(item => item.debt);
 
         let ctx = document.getElementById('netWorthChart').getContext('2d');
@@ -167,7 +178,6 @@
                         data: cashValues,
                         borderColor: '#007aff',
                         borderWidth: 2,
-                        hidden: false,
                         tension: 0.3
                     },
                     {
@@ -175,7 +185,6 @@
                         data: superValues,
                         borderColor: '#5856d6',
                         borderWidth: 2,
-                        hidden: false,
                         tension: 0.3
                     },
                     {
@@ -183,7 +192,6 @@
                         data: fhssValues,
                         borderColor: '#ff9500',
                         borderWidth: 2,
-                        hidden: false,
                         tension: 0.3
                     },
                     {
@@ -191,7 +199,13 @@
                         data: investValues,
                         borderColor: '#af52de',
                         borderWidth: 2,
-                        hidden: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Est. EOFY Tax',
+                        data: taxValues,
+                        borderColor: '#32ade6',
+                        borderWidth: 2,
                         tension: 0.3
                     },
                     {
@@ -199,7 +213,6 @@
                         data: debtValues,
                         borderColor: '#ff3b30',
                         borderWidth: 2,
-                        hidden: false,
                         tension: 0.3
                     }
                 ]
@@ -218,7 +231,7 @@
     }
 
     function exportData() {
-        let data = localStorage.getItem('nw_history_v2');
+        let data = localStorage.getItem('nw_history_v3');
         if (!data) { alert('No data to export!'); return; }
         let blob = new Blob([data], { type: 'application/json' });
         let url = URL.createObjectURL(blob);
@@ -234,7 +247,7 @@
         let reader = new FileReader();
         reader.onload = function(e) {
             try {
-                localStorage.setItem('nw_history_v2', e.target.result);
+                localStorage.setItem('nw_history_v3', e.target.result);
                 init();
                 alert('Data successfully restored from backup!');
             } catch (err) {
